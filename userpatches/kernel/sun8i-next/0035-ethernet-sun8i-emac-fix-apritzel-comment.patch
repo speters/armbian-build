@@ -1,0 +1,729 @@
+From 0eb0877ce1382df46c383c86407e991333de2316 Mon Sep 17 00:00:00 2001
+From: LABBE Corentin <clabbe.montjoie@gmail.com>
+Date: Mon, 6 Jun 2016 16:52:27 +0200
+Subject: [PATCH 35/37] ethernet: sun8i-emac fix apritzel comment
+
+Signed-off-by: LABBE Corentin <clabbe.montjoie@gmail.com>
+---
+ drivers/net/ethernet/allwinner/Kconfig      |   2 +-
+ drivers/net/ethernet/allwinner/sun8i-emac.c | 470 +++++++++++++++++-----------
+ 2 files changed, 287 insertions(+), 185 deletions(-)
+
+diff --git a/drivers/net/ethernet/allwinner/Kconfig b/drivers/net/ethernet/allwinner/Kconfig
+index 226499d..060569c 100644
+--- a/drivers/net/ethernet/allwinner/Kconfig
++++ b/drivers/net/ethernet/allwinner/Kconfig
+@@ -34,7 +34,7 @@ config SUN4I_EMAC
+           will be called sun4i-emac.
+ 
+ config SUN8I_EMAC
+-        tristate "Allwinner sun8i EMAC support"
++	tristate "Allwinner sun8i EMAC support"
+ 	depends on ARCH_SUNXI || COMPILE_TEST
+ 	depends on OF
+ 	select MII
+diff --git a/drivers/net/ethernet/allwinner/sun8i-emac.c b/drivers/net/ethernet/allwinner/sun8i-emac.c
+index a4a9afd..5ddf8d3 100644
+--- a/drivers/net/ethernet/allwinner/sun8i-emac.c
++++ b/drivers/net/ethernet/allwinner/sun8i-emac.c
+@@ -32,30 +32,22 @@
+ #include <linux/scatterlist.h>
+ #include <linux/skbuff.h>
+ 
+-#define SUN8I_EMAC_BASIC_CTL0 0x00
+-#define SUN8I_EMAC_BASIC_CTL1 0x04
+-
+-#define SUN8I_EMAC_MDIO_CMD 0x48
+-#define SUN8I_EMAC_MDIO_DATA 0x4C
+-
+-#define SUN8I_EMAC_RX_CTL0 0x24
+-#define SUN8I_EMAC_RX_CTL1 0x28
+-
+-#define SUN8I_EMAC_TX_CTL0 0x10
+-#define SUN8I_EMAC_TX_CTL1 0x14
+-
+-#define SUN8I_EMAC_TX_FLOW_CTL 0x1C
+-
+-#define SUN8I_EMAC_RX_FRM_FLT 0x38
+-
+-#define SUN8I_EMAC_INT_STA 0x08
+-#define SUN8I_EMAC_INT_EN 0x0C
+-#define SUN8I_EMAC_RGMII_STA 0xD0
+-
+-#define SUN8I_EMAC_TX_DMA_STA 0xB0
+-#define SUN8I_EMAC_TX_CUR_DESC 0xB4
+-#define SUN8I_EMAC_TX_CUR_BUF 0xB8
+-#define SUN8I_EMAC_RX_DMA_STA 0xC0
++#define SUN8I_EMAC_BASIC_CTL0	0x00
++#define SUN8I_EMAC_BASIC_CTL1	0x04
++#define SUN8I_EMAC_INT_STA	0x08
++#define SUN8I_EMAC_INT_EN	0x0C
++#define SUN8I_EMAC_TX_CTL0	0x10
++#define SUN8I_EMAC_TX_CTL1	0x14
++#define SUN8I_EMAC_TX_FLOW_CTL	0x1C
++#define SUN8I_EMAC_RX_CTL0	0x24
++#define SUN8I_EMAC_RX_CTL1	0x28
++#define SUN8I_EMAC_RX_FRM_FLT	0x38
++#define SUN8I_EMAC_MDIO_CMD	0x48
++#define SUN8I_EMAC_MDIO_DATA	0x4C
++#define SUN8I_EMAC_TX_DMA_STA	0xB0
++#define SUN8I_EMAC_TX_CUR_DESC	0xB4
++#define SUN8I_EMAC_TX_CUR_BUF	0xB8
++#define SUN8I_EMAC_RX_DMA_STA	0xC0
+ 
+ #define MDIO_CMD_MII_BUSY	BIT(0)
+ #define MDIO_CMD_MII_WRITE	BIT(1)
+@@ -165,17 +157,7 @@ struct dma_desc {
+ 	u32 st; /* Information on the frame */
+ 	u32 buf_addr; /* physical address of the frame data */
+ 	u32 next; /* physical address of next dma_desc */
+-} __packed __aligned(4);
+-
+-/* Benched on OPIPC with 100M, setting more than 256 does not give any
+- * perf boost
+- */
+-static int nbdesc_tx = 256;
+-module_param(nbdesc_tx, int, S_IRUGO | S_IWUSR);
+-MODULE_PARM_DESC(nbdesc_tx, "Number of descriptors in the TX list");
+-static int nbdesc_rx = 128;
+-module_param(nbdesc_rx, int, S_IRUGO | S_IWUSR);
+-MODULE_PARM_DESC(nbdesc_rx, "Number of descriptors in the RX list");
++} __packed;
+ 
+ struct sun8i_emac_priv {
+ 	void __iomem *base;
+@@ -201,14 +183,16 @@ struct sun8i_emac_priv {
+ 	struct reset_control *rst;
+ 	struct reset_control *rst_ephy;
+ 
+-	struct dma_desc *dd_rx __aligned(4);
+-	dma_addr_t dd_rx_phy __aligned(4);
+-	struct dma_desc *dd_tx __aligned(4);
+-	dma_addr_t dd_tx_phy __aligned(4);
++	struct dma_desc *dd_rx;
++	dma_addr_t dd_rx_phy;
++	struct dma_desc *dd_tx;
++	dma_addr_t dd_tx_phy;
+ 	struct sk_buff **rx_sk;
+ 	struct sk_buff **tx_sk;
+ 	int *tx_map;
+ 
++	int nbdesc_tx;
++	int nbdesc_rx;
+ 	int tx_slot;
+ 	int tx_dirty;
+ 	int rx_dirty;
+@@ -235,7 +219,7 @@ static int rb_tx_numfreedesc(struct net_device *ndev)
+ 	if (priv->tx_slot < priv->tx_dirty)
+ 		return priv->tx_dirty - priv->tx_slot;
+ 
+-	return (nbdesc_tx - priv->tx_slot) + priv->tx_dirty;
++	return (priv->nbdesc_tx - priv->tx_slot) + priv->tx_dirty;
+ }
+ 
+ /* Allocate a skb in a DMA descriptor
+@@ -275,6 +259,64 @@ static int sun8i_emac_rx_sk(struct net_device *ndev, int i)
+ 	return 0;
+ }
+ 
++static void sun8i_emac_stop_tx(struct net_device *ndev)
++{
++	struct sun8i_emac_priv *priv = netdev_priv(ndev);
++	u32 v;
++
++	netif_stop_queue(ndev);
++
++	v = readl(priv->base + SUN8I_EMAC_TX_CTL0);
++	v &= ~BIT(31); /* Disable transmitter after current reception */
++	writel(v, priv->base + SUN8I_EMAC_TX_CTL0);
++	v = readl(priv->base + SUN8I_EMAC_TX_CTL1);
++	v &= ~BIT(30); /* Stop TX DMA */
++	writel(v, priv->base + SUN8I_EMAC_TX_CTL1);
++}
++
++static void sun8i_emac_stop_rx(struct net_device *ndev)
++{
++	struct sun8i_emac_priv *priv = netdev_priv(ndev);
++	u32 v;
++
++	v = readl(priv->base + SUN8I_EMAC_RX_CTL0);
++	v &= ~BIT(31); /* Disable receiver after current reception */
++	writel(v, priv->base + SUN8I_EMAC_RX_CTL0);
++	v = readl(priv->base + SUN8I_EMAC_RX_CTL1);
++	v &= ~BIT(30); /* Stop RX DMA */
++	writel(v, priv->base + SUN8I_EMAC_RX_CTL1);
++}
++
++static void sun8i_emac_start_rx(struct net_device *ndev)
++{
++	struct sun8i_emac_priv *priv = netdev_priv(ndev);
++	u32 v;
++
++	v = readl(priv->base + SUN8I_EMAC_RX_CTL0);
++	v |= BIT(31);
++	writel(v, priv->base + SUN8I_EMAC_RX_CTL0);
++
++	v = readl(priv->base + SUN8I_EMAC_RX_CTL1);
++	v |= BIT(31);
++	v |= BIT(30);
++	writel(v, priv->base + SUN8I_EMAC_RX_CTL1);
++}
++
++static void sun8i_emac_start_tx(struct net_device *ndev)
++{
++	struct sun8i_emac_priv *priv = netdev_priv(ndev);
++	u32 v;
++
++	v = readl(priv->base + SUN8I_EMAC_TX_CTL0);
++	v |= BIT(31);
++	writel(v, priv->base + SUN8I_EMAC_TX_CTL0);
++
++	v = readl(priv->base + SUN8I_EMAC_TX_CTL1);
++	v |= BIT(31);
++	v |= BIT(30);
++	writel(v, priv->base + SUN8I_EMAC_TX_CTL1);
++}
++
+ /* Set MAC address for slot index
+  * @addr: the MAC address to set
+  * @index: The index of slot where to set address.
+@@ -461,7 +503,7 @@ static int sun8i_emac_receive_all(struct net_device *ndev)
+ 	ddesc = priv->dd_rx + priv->rx_dirty;
+ 	while (!(ddesc->status & BIT(31))) {
+ 		sun8i_emac_rx_from_ddesc(ndev, priv->rx_dirty);
+-		rb_inc(&priv->rx_dirty, nbdesc_rx);
++		rb_inc(&priv->rx_dirty, priv->nbdesc_rx);
+ 		ddesc = priv->dd_rx + priv->rx_dirty;
+ 	};
+ 
+@@ -545,7 +587,7 @@ static int sun8i_emac_complete_xmit(struct net_device *ndev)
+ 		ddesc->status = DCLEAN;
+ 		ddesc->st = 0;
+ 
+-		rb_inc(&priv->tx_dirty, nbdesc_tx);
++		rb_inc(&priv->tx_dirty, priv->nbdesc_tx);
+ 		ddesc = priv->dd_tx + priv->tx_dirty;
+ 	} while (ddesc->st && !(ddesc->status & BIT(31)));
+ 
+@@ -1027,96 +1069,37 @@ static int sun8i_emac_mdio_probe(struct net_device *ndev)
+ 	return 0;
+ }
+ 
+-static int sun8i_emac_open(struct net_device *ndev)
++/* Allocate both RX and TX ring buffer and init them
++ * This function also write the startbase of thoses ring in the device.
++ * All structures that help managing thoses rings are also handled
++ * by this functions (rx_sk/tx_sk/tx_map)
++ */
++static int sun8i_emac_alloc_rings(struct net_device *ndev)
+ {
+ 	struct sun8i_emac_priv *priv = netdev_priv(ndev);
+-	int err;
+-	u32 v;
+ 	struct dma_desc *ddesc;
+-	int i;
+-
+-	if (nbdesc_tx < MAX_SKB_FRAGS + 1) {
+-		dev_err(priv->dev, "The number of TX descriptors is too low");
+-		return -EINVAL;
+-	}
+-
+-	err = sun8i_emac_mdio_probe(ndev);
+-	if (err)
+-		return err;
+-
+-	/* Do SOFT RST */
+-	v = readl(priv->base + SUN8I_EMAC_BASIC_CTL1);
+-	writel(v | 0x01, priv->base + SUN8I_EMAC_BASIC_CTL1);
++	int err, i;
+ 
+-	err = readl_poll_timeout(priv->base + SUN8I_EMAC_BASIC_CTL1, v,
+-				 !(v & 0x01), 100, 10000);
+-	if (err) {
+-		dev_err(priv->dev, "EMAC reset timeout\n");
+-		err = -EFAULT;
+-		goto err_emac_timeout;
+-	}
+-
+-	sun8i_emac_set_mdc(ndev);
+-
+-	/* DMA */
+-	v = (8 << 24);/* burst len */
+-	writel(v, priv->base + SUN8I_EMAC_BASIC_CTL1);
+-
+-	/* it seems that hardware complety ignore interrupt configuration */
+-#define RX_INT                  BIT(8)
+-#define TX_INT                  BIT(0)
+-#define TX_UNF_INT              BIT(4)
+-	writel(RX_INT | TX_INT | TX_UNF_INT, priv->base + SUN8I_EMAC_INT_EN);
+-
+-	v = readl(priv->base + SUN8I_EMAC_RX_CTL0);
+-	/* CHECK_CRC */
+-	if (ndev->features & NETIF_F_RXCSUM)
+-		v |= SUN8I_EMAC_RX_DO_CRC;
+-	else
+-		v &= ~SUN8I_EMAC_RX_DO_CRC;
+-	/* STRIP_FCS */
+-	if (ndev->features & NETIF_F_RXFCS)
+-		v &= ~SUN8I_EMAC_RX_STRIP_FCS;
+-	else
+-		v |= SUN8I_EMAC_RX_STRIP_FCS;
+-	writel(v, priv->base + SUN8I_EMAC_RX_CTL0);
+-
+-	v = readl(priv->base + SUN8I_EMAC_TX_CTL1);
+-	/* TX_MD Transmission starts after a full frame located in TX DMA FIFO*/
+-	v |= BIT(1);
+-	writel(v, priv->base + SUN8I_EMAC_TX_CTL1);
+-
+-	v = readl(priv->base + SUN8I_EMAC_RX_CTL1);
+-	/* RX_MD RX DMA reads data from RX DMA FIFO to host memory after a
+-	 * complete frame has been written to RX DMA FIFO
+-	*/
+-	v |= BIT(1);
+-	writel(v, priv->base + SUN8I_EMAC_RX_CTL1);
+-
+-	sun8i_emac_set_macaddr(priv, ndev->dev_addr, 0);
+-
+-	priv->tx_slot = 0;
+-	priv->tx_dirty = 0;
+-	priv->rx_dirty = 0;
+-
+-	priv->rx_sk = kcalloc(nbdesc_rx, sizeof(struct sk_buff *), GFP_KERNEL);
++	priv->rx_sk = kcalloc(priv->nbdesc_rx, sizeof(struct sk_buff *),
++			      GFP_KERNEL);
+ 	if (!priv->rx_sk) {
+ 		err = -ENOMEM;
+ 		goto rx_sk_error;
+ 	}
+-	priv->tx_sk = kcalloc(nbdesc_tx, sizeof(struct sk_buff *), GFP_KERNEL);
++	priv->tx_sk = kcalloc(priv->nbdesc_tx, sizeof(struct sk_buff *),
++			      GFP_KERNEL);
+ 	if (!priv->tx_sk) {
+ 		err = -ENOMEM;
+ 		goto tx_sk_error;
+ 	}
+-	priv->tx_map = kcalloc(nbdesc_tx, sizeof(int), GFP_KERNEL);
++	priv->tx_map = kcalloc(priv->nbdesc_tx, sizeof(int), GFP_KERNEL);
+ 	if (!priv->tx_map) {
+ 		err = -ENOMEM;
+ 		goto tx_map_error;
+ 	}
+ 
+ 	priv->dd_rx = dma_alloc_coherent(priv->dev,
+-			nbdesc_rx * sizeof(struct dma_desc),
++			priv->nbdesc_rx * sizeof(struct dma_desc),
+ 			&priv->dd_rx_phy,
+ 			GFP_KERNEL);
+ 	if (!priv->dd_rx) {
+@@ -1124,9 +1107,9 @@ static int sun8i_emac_open(struct net_device *ndev)
+ 		err = -ENOMEM;
+ 		goto dma_rx_error;
+ 	}
+-	memset(priv->dd_rx, 0, nbdesc_rx * sizeof(struct dma_desc));
++	memset(priv->dd_rx, 0, priv->nbdesc_rx * sizeof(struct dma_desc));
+ 	ddesc = priv->dd_rx;
+-	for (i = 0; i < nbdesc_rx; i++) {
++	for (i = 0; i < priv->nbdesc_rx; i++) {
+ 		sun8i_emac_rx_sk(ndev, i);
+ 		ddesc->next = (u32)priv->dd_rx_phy + (i + 1)
+ 			* sizeof(struct dma_desc);
+@@ -1137,7 +1120,7 @@ static int sun8i_emac_open(struct net_device *ndev)
+ 	ddesc->next = (u32)priv->dd_rx_phy;
+ 
+ 	priv->dd_tx = dma_alloc_coherent(priv->dev,
+-			nbdesc_tx * sizeof(struct dma_desc),
++			priv->nbdesc_tx * sizeof(struct dma_desc),
+ 			&priv->dd_tx_phy,
+ 			GFP_KERNEL);
+ 	if (!priv->dd_tx) {
+@@ -1145,9 +1128,9 @@ static int sun8i_emac_open(struct net_device *ndev)
+ 		err = -ENOMEM;
+ 		goto dma_tx_error;
+ 	}
+-	memset(priv->dd_tx, 0, nbdesc_tx * sizeof(struct dma_desc));
++	memset(priv->dd_tx, 0, priv->nbdesc_tx * sizeof(struct dma_desc));
+ 	ddesc = priv->dd_tx;
+-	for (i = 0; i < nbdesc_tx; i++) {
++	for (i = 0; i < priv->nbdesc_tx; i++) {
+ 		ddesc->status = DCLEAN;
+ 		ddesc->st = 0;
+ 		ddesc->next = (u32)(priv->dd_tx_phy + (i + 1)
+@@ -1159,38 +1142,18 @@ static int sun8i_emac_open(struct net_device *ndev)
+ 	ddesc->next = (u32)priv->dd_tx_phy;
+ 	i--;
+ 
+-	if (ndev->phydev)
+-		phy_start(ndev->phydev);
++	priv->tx_slot = 0;
++	priv->tx_dirty = 0;
++	priv->rx_dirty = 0;
+ 
+ 	/* write start of rx ring descriptor */
+ 	writel(priv->dd_rx_phy, priv->base + SUN8I_EMAC_RX_DESC_LIST);
+-	/* start RX DMA */
+-	v = readl(priv->base + SUN8I_EMAC_RX_CTL1);
+-	v |= BIT(30);
+-	writel(v, priv->base + SUN8I_EMAC_RX_CTL1);
+-
+ 	/* write start of tx ring descriptor */
+ 	writel(priv->dd_tx_phy, priv->base + SUN8I_EMAC_TX_DESC_LIST);
+-	/* start TX DMA */
+-	v = readl(priv->base + SUN8I_EMAC_TX_CTL1);
+-	v |= BIT(30);
+-	writel(v, priv->base + SUN8I_EMAC_TX_CTL1);
+-
+-	/* activate transmitter */
+-	v = readl(priv->base + SUN8I_EMAC_TX_CTL0);
+-	v |= BIT(31);
+-	writel(v, priv->base + SUN8I_EMAC_TX_CTL0);
+-
+-	/* activate receiver */
+-	v = readl(priv->base + SUN8I_EMAC_RX_CTL0);
+-	v |= BIT(31);
+-	writel(v, priv->base + SUN8I_EMAC_RX_CTL0);
+-
+-	netif_start_queue(ndev);
+ 
+ 	return 0;
+ dma_tx_error:
+-	dma_free_coherent(priv->dev, nbdesc_rx * sizeof(struct dma_desc),
++	dma_free_coherent(priv->dev, priv->nbdesc_rx * sizeof(struct dma_desc),
+ 			  priv->dd_rx, priv->dd_rx_phy);
+ dma_rx_error:
+ 	kfree(priv->tx_map);
+@@ -1199,6 +1162,85 @@ tx_map_error:
+ tx_sk_error:
+ 	kfree(priv->rx_sk);
+ rx_sk_error:
++	return err;
++}
++
++static int sun8i_emac_open(struct net_device *ndev)
++{
++	struct sun8i_emac_priv *priv = netdev_priv(ndev);
++	int err;
++	u32 v;
++
++	err = sun8i_emac_mdio_probe(ndev);
++	if (err)
++		return err;
++
++	/* Do SOFT RST */
++	v = readl(priv->base + SUN8I_EMAC_BASIC_CTL1);
++	writel(v | 0x01, priv->base + SUN8I_EMAC_BASIC_CTL1);
++
++	err = readl_poll_timeout(priv->base + SUN8I_EMAC_BASIC_CTL1, v,
++				 !(v & 0x01), 100, 10000);
++	if (err) {
++		dev_err(priv->dev, "EMAC reset timeout\n");
++		err = -EFAULT;
++		goto err_emac_timeout;
++	}
++
++	sun8i_emac_set_mdc(ndev);
++
++	/* DMA */
++	v = (8 << 24);/* burst len */
++	writel(v, priv->base + SUN8I_EMAC_BASIC_CTL1);
++
++	/* it seems that hardware complety ignore interrupt configuration */
++#define RX_INT                  BIT(8)
++#define TX_INT                  BIT(0)
++#define TX_UNF_INT              BIT(4)
++	writel(RX_INT | TX_INT | TX_UNF_INT, priv->base + SUN8I_EMAC_INT_EN);
++
++	v = readl(priv->base + SUN8I_EMAC_RX_CTL0);
++	/* CHECK_CRC */
++	if (ndev->features & NETIF_F_RXCSUM)
++		v |= SUN8I_EMAC_RX_DO_CRC;
++	else
++		v &= ~SUN8I_EMAC_RX_DO_CRC;
++	/* STRIP_FCS */
++	if (ndev->features & NETIF_F_RXFCS)
++		v &= ~SUN8I_EMAC_RX_STRIP_FCS;
++	else
++		v |= SUN8I_EMAC_RX_STRIP_FCS;
++	writel(v, priv->base + SUN8I_EMAC_RX_CTL0);
++
++	v = readl(priv->base + SUN8I_EMAC_TX_CTL1);
++	/* TX_MD Transmission starts after a full frame located in TX DMA FIFO*/
++	v |= BIT(1);
++	writel(v, priv->base + SUN8I_EMAC_TX_CTL1);
++
++	v = readl(priv->base + SUN8I_EMAC_RX_CTL1);
++	/* RX_MD RX DMA reads data from RX DMA FIFO to host memory after a
++	 * complete frame has been written to RX DMA FIFO
++	*/
++	v |= BIT(1);
++	writel(v, priv->base + SUN8I_EMAC_RX_CTL1);
++
++	sun8i_emac_set_macaddr(priv, ndev->dev_addr, 0);
++
++	err = sun8i_emac_alloc_rings(ndev);
++	if (err) {
++		netdev_err(ndev, "Fail to allocate rings\n");
++		goto err_emac_timeout;
++	}
++
++	if (ndev->phydev)
++		phy_start(ndev->phydev);
++
++	sun8i_emac_start_rx(ndev);
++	sun8i_emac_start_tx(ndev);
++
++	netif_start_queue(ndev);
++
++	return 0;
+ err_emac_timeout:
+ 	phy_disconnect(ndev->phydev);
+ 	return err;
+@@ -1214,7 +1256,7 @@ static void sun8i_emac_tx_clean(struct net_device *ndev)
+ 
+ 	spin_lock(&priv->tx_lock);
+ 
+-	for (i = 0; i < nbdesc_tx; i++) {
++	for (i = 0; i < priv->nbdesc_tx; i++) {
+ 		if (priv->tx_sk[i]) {
+ 			ddesc = priv->dd_tx + i;
+ 			frame_len = ddesc->st & 0x3FFF;
+@@ -1243,27 +1285,15 @@ static void sun8i_emac_tx_clean(struct net_device *ndev)
+ 	spin_unlock(&priv->tx_lock);
+ }
+ 
+-static int sun8i_emac_stop(struct net_device *ndev)
++/* Clean the RX ring */
++static void sun8i_emac_rx_clean(struct net_device *ndev)
+ {
+ 	struct sun8i_emac_priv *priv = netdev_priv(ndev);
+ 	int i;
+ 	struct dma_desc *ddesc;
+ 
+-	/* Stop receiver */
+-	writel(0, priv->base + SUN8I_EMAC_RX_CTL0);
+-	writel(0, priv->base + SUN8I_EMAC_RX_CTL1);
+-	/* Stop transmitter */
+-	writel(0, priv->base + SUN8I_EMAC_TX_CTL0);
+-	writel(0, priv->base + SUN8I_EMAC_TX_CTL1);
+-
+-	netif_stop_queue(ndev);
+-	netif_carrier_off(ndev);
+-
+-	phy_stop(ndev->phydev);
+-	phy_disconnect(ndev->phydev);
+-
+ 	/* clean RX ring */
+-	for (i = 0; i < nbdesc_rx; i++)
++	for (i = 0; i < priv->nbdesc_rx; i++)
+ 		if (priv->rx_sk[i]) {
+ 			ddesc = priv->dd_rx + i;
+ 			dma_unmap_single(priv->dev, ddesc->buf_addr,
+@@ -1271,15 +1301,30 @@ static int sun8i_emac_stop(struct net_device *ndev)
+ 			dev_kfree_skb_any(priv->rx_sk[i]);
+ 			priv->rx_sk[i] = NULL;
+ 		}
++}
++
++static int sun8i_emac_stop(struct net_device *ndev)
++{
++	struct sun8i_emac_priv *priv = netdev_priv(ndev);
++
++	sun8i_emac_stop_tx(ndev);
++	sun8i_emac_stop_rx(ndev);
++
++	netif_carrier_off(ndev);
++
++	phy_stop(ndev->phydev);
++	phy_disconnect(ndev->phydev);
++
++	sun8i_emac_rx_clean(ndev);
+ 	sun8i_emac_tx_clean(ndev);
+ 
+ 	kfree(priv->rx_sk);
+ 	kfree(priv->tx_sk);
+ 	kfree(priv->tx_map);
+ 
+-	dma_free_coherent(priv->dev, nbdesc_rx * sizeof(struct dma_desc),
++	dma_free_coherent(priv->dev, priv->nbdesc_rx * sizeof(struct dma_desc),
+ 			  priv->dd_rx, priv->dd_rx_phy);
+-	dma_free_coherent(priv->dev, nbdesc_tx * sizeof(struct dma_desc),
++	dma_free_coherent(priv->dev, priv->nbdesc_tx * sizeof(struct dma_desc),
+ 			  priv->dd_tx, priv->dd_tx_phy);
+ 
+ 	return 0;
+@@ -1332,7 +1377,7 @@ static netdev_tx_t sun8i_emac_xmit(struct sk_buff *skb, struct net_device *ndev)
+ 	first = priv->dd_tx + i;
+ 	rbd_first = i;
+ 
+-	priv->tx_slot = (i + 1 + n) % nbdesc_tx;
++	priv->tx_slot = (i + 1 + n) % priv->nbdesc_tx;
+ 
+ 	ddesc->buf_addr = dma_map_single(priv->dev, skb->data, len,
+ 					 DMA_TO_DEVICE);
+@@ -1354,7 +1399,7 @@ static netdev_tx_t sun8i_emac_xmit(struct sk_buff *skb, struct net_device *ndev)
+ 	/* handle fragmented skb, one descriptor per fragment  */
+ 	for (nf = 0; nf < n; nf++) {
+ 		frag = &skb_shinfo(skb)->frags[nf];
+-		rb_inc(&i, nbdesc_tx);
++		rb_inc(&i, priv->nbdesc_tx);
+ 		priv->tx_sk[i] = skb;
+ 		ddesc = priv->dd_tx + i;
+ 		fraglen = skb_frag_size(frag);
+@@ -1379,7 +1424,7 @@ static netdev_tx_t sun8i_emac_xmit(struct sk_buff *skb, struct net_device *ndev)
+ 	/* We want an interrupt after transmission */
+ 	ddesc->st |= BIT(31);
+ 
+-	rb_inc(&i, nbdesc_tx);
++	rb_inc(&i, priv->nbdesc_tx);
+ 
+ 	/* frame begin */
+ 	first->st |= BIT(29);
+@@ -1415,7 +1460,7 @@ xmit_error:
+ 		ddesc = priv->dd_tx + rbd_first;
+ 		ddesc->st = 0;
+ 		ddesc->status = DCLEAN;
+-		rb_inc(&rbd_first, nbdesc_tx);
++		rb_inc(&rbd_first, priv->nbdesc_tx);
+ 	} while (rbd_first != i);
+ 	spin_unlock(&priv->tx_lock);
+ 	dev_kfree_skb_any(skb);
+@@ -1522,33 +1567,17 @@ static void sun8i_emac_set_rx_mode(struct net_device *ndev)
+ static void sun8i_emac_tx_timeout(struct net_device *ndev)
+ {
+ 	struct sun8i_emac_priv *priv = netdev_priv(ndev);
+-	u32 v;
+ 
+-	dev_info(priv->dev, "%s\n", __func__);
+-	netif_stop_queue(ndev);
++	netdev_err(ndev, "%s\n", __func__);
+ 
+-	v = readl(priv->base + SUN8I_EMAC_TX_CTL0);
+-	v &= ~BIT(31);
+-	writel(v, priv->base + SUN8I_EMAC_TX_CTL0);
+-
+-	v = readl(priv->base + SUN8I_EMAC_TX_CTL1);
+-	v &= ~BIT(31);
+-	v &= ~BIT(30);
+-	writel(v, priv->base + SUN8I_EMAC_TX_CTL1);
++	sun8i_emac_stop_tx(ndev);
+ 
+ 	sun8i_emac_tx_clean(ndev);
+ 
+ 	/* write start of tx ring descriptor */
+ 	writel(priv->dd_tx_phy, priv->base + SUN8I_EMAC_TX_DESC_LIST);
+ 
+-	v = readl(priv->base + SUN8I_EMAC_TX_CTL0);
+-	v |= BIT(31);
+-	writel(v, priv->base + SUN8I_EMAC_TX_CTL0);
+-
+-	v = readl(priv->base + SUN8I_EMAC_TX_CTL1);
+-	v |= BIT(31);
+-	v |= BIT(30);
+-	writel(v, priv->base + SUN8I_EMAC_TX_CTL1);
++	sun8i_emac_start_tx(ndev);
+ 
+ 	netdev_reset_queue(ndev);
+ 
+@@ -1698,6 +1727,65 @@ static int sun8i_emac_set_pauseparam(struct net_device *ndev,
+ 	return ret;
+ }
+ 
++static void sun8i_emac_ethtool_get_ringparam(struct net_device *ndev,
++					     struct ethtool_ringparam *ring)
++{
++	struct sun8i_emac_priv *priv = netdev_priv(ndev);
++
++	ring->rx_pending = priv->nbdesc_rx;
++	ring->tx_pending = priv->nbdesc_tx;
++}
++
++static int sun8i_emac_ethtool_set_ringparam(struct net_device *ndev,
++					    struct ethtool_ringparam *ring)
++{
++	struct sun8i_emac_priv *priv = netdev_priv(ndev);
++	int err;
++
++	if (ring->rx_max_pending || ring->rx_mini_max_pending ||
++	    ring->rx_jumbo_max_pending || ring->rx_mini_pending ||
++	    ring->rx_jumbo_pending || ring->tx_max_pending)
++		return -EINVAL;
++
++	if (ring->tx_pending < MAX_SKB_FRAGS + 1) {
++		netdev_err(ndev, "The number of TX descriptors is too low");
++		return -EINVAL;
++	}
++
++	sun8i_emac_stop_tx(ndev);
++	sun8i_emac_stop_rx(ndev);
++
++	sun8i_emac_rx_clean(ndev);
++	sun8i_emac_tx_clean(ndev);
++
++	kfree(priv->rx_sk);
++	kfree(priv->tx_sk);
++	kfree(priv->tx_map);
++
++	dma_free_coherent(priv->dev, priv->nbdesc_rx * sizeof(struct dma_desc),
++			  priv->dd_rx, priv->dd_rx_phy);
++	dma_free_coherent(priv->dev, priv->nbdesc_tx * sizeof(struct dma_desc),
++			  priv->dd_tx, priv->dd_tx_phy);
++
++	priv->nbdesc_rx = ring->rx_pending;
++	priv->nbdesc_tx = ring->tx_pending;
++	err = sun8i_emac_alloc_rings(ndev);
++	if (err) {
++		/* Fatal error, we cannot re start */
++		netdev_err(ndev, "Fail to allocate rings\n");
++		return -EFAULT;
++	}
++
++	sun8i_emac_start_rx(ndev);
++	sun8i_emac_start_tx(ndev);
++
++	netif_start_queue(ndev);
++
++	netdev_info(ndev, "Ring Param settings: rx: %d, tx %d\n",
++		    ring->rx_pending, ring->tx_pending);
++	return 0;
++}
++
+ static const struct ethtool_ops sun8i_emac_ethtool_ops = {
+ 	.begin = sun8i_emac_check_if_running,
+ 	.get_settings = sun8i_emac_ethtool_get_settings,
+@@ -1713,6 +1801,8 @@ static const struct ethtool_ops sun8i_emac_ethtool_ops = {
+ 	.get_drvinfo = sun8i_emac_ethtool_getdrvinfo,
+ 	.get_msglevel = sun8i_emac_ethtool_getmsglevel,
+ 	.set_msglevel = sun8i_emac_ethtool_setmsglevel,
++	.get_ringparam = sun8i_emac_ethtool_get_ringparam,
++	.set_ringparam = sun8i_emac_ethtool_set_ringparam,
+ };
+ 
+ static const struct net_device_ops sun8i_emac_netdev_ops = {
+@@ -1813,6 +1903,12 @@ static int sun8i_emac_probe(struct platform_device *pdev)
+ 	struct net_device *ndev;
+ 	int ret;
+ 
++	ret = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
++	if (ret) {
++		dev_err(&pdev->dev, "No suitable DMA available\n");
++		return ret;
++	}
++
+ 	ndev = alloc_etherdev(sizeof(*priv));
+ 	if (!ndev)
+ 		return -ENOMEM;
+@@ -1944,6 +2040,12 @@ static int sun8i_emac_probe(struct platform_device *pdev)
+ 
+ 	ndev->watchdog_timeo = msecs_to_jiffies(5000);
+ 
++	/* Benched on OPIPC with 100M, setting more than 256 does not give any
++	 * perf boost
++	 */
++	priv->nbdesc_rx = 128;
++	priv->nbdesc_tx = 256;
++
+ 	ret = register_netdev(ndev);
+ 	if (ret) {
+ 		dev_err(&pdev->dev, "ERROR: Register %s failed\n", ndev->name);
+-- 
+2.9.0
+

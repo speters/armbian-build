@@ -1,0 +1,30 @@
+From 0014e2f1e3f123394d9c86dc13f31658e908f58d Mon Sep 17 00:00:00 2001
+From: LABBE Corentin <clabbe.montjoie@gmail.com>
+Date: Thu, 31 Mar 2016 19:28:54 +0200
+Subject: [PATCH 30/37] MAINTAINERS: Add myself as maintainers of sun8i-emac
+
+Signed-off-by: LABBE Corentin <clabbe.montjoie@gmail.com>
+---
+ MAINTAINERS | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 9c567a4..ea245b9 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -582,6 +582,12 @@ S:	Maintained
+ F:	Documentation/i2c/busses/i2c-ali1563
+ F:	drivers/i2c/busses/i2c-ali1563.c
+ 
++ALLWINNER SUN8I-EMAC ETHERNET DRIVER
++M:	Corentin Labbe <clabbe.montjoie@gmail.com>
++L:	netdev@vger.kernel.org
++S:	Maintained
++F:	drivers/net/ethernet/allwinner/sun8i-emac.c
++
+ ALLWINNER SECURITY SYSTEM
+ M:	Corentin Labbe <clabbe.montjoie@gmail.com>
+ L:	linux-crypto@vger.kernel.org
+-- 
+2.9.0
+

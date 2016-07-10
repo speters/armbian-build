@@ -1,0 +1,27 @@
+From 4dd5b914c5317fd4735ba4a9872dfab63b57c720 Mon Sep 17 00:00:00 2001
+From: Ondrej Jirman <megous@megous.com>
+Date: Mon, 4 Apr 2016 18:20:40 +0200
+Subject: [PATCH 17/37] ARM: dts: sun8i: Add cpu0 label to sun8i-h3.dtsi
+
+Add label to the first cpu so that it can be referenced from
+derived dts files.
+---
+ arch/arm/boot/dts/sun8i-h3.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/boot/dts/sun8i-h3.dtsi b/arch/arm/boot/dts/sun8i-h3.dtsi
+index cb7cc13..c590591 100644
+--- a/arch/arm/boot/dts/sun8i-h3.dtsi
++++ b/arch/arm/boot/dts/sun8i-h3.dtsi
+@@ -52,7 +52,7 @@
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+ 
+-		cpu@0 {
++		cpu0: cpu@0 {
+ 			compatible = "arm,cortex-a7";
+ 			device_type = "cpu";
+ 			reg = <0>;
+-- 
+2.9.0
+

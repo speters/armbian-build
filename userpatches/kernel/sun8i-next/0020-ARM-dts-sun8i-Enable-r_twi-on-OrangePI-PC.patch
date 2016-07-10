@@ -1,0 +1,29 @@
+From 8b0d8cf3a3116b7d3a48d0bbf70ad25f67643284 Mon Sep 17 00:00:00 2001
+From: Ondrej Jirman <megous@megous.com>
+Date: Mon, 4 Apr 2016 18:16:41 +0200
+Subject: [PATCH 20/37] ARM: dts: sun8i: Enable r_twi on OrangePI PC
+
+Enable I2C controller where the SY8106A regulator for CPUX
+voltage is attached on Orange PI PC SBC.
+---
+ arch/arm/boot/dts/sun8i-h3-orangepi-pc.dts | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/arch/arm/boot/dts/sun8i-h3-orangepi-pc.dts b/arch/arm/boot/dts/sun8i-h3-orangepi-pc.dts
+index daf50b9a6..e5991da 100644
+--- a/arch/arm/boot/dts/sun8i-h3-orangepi-pc.dts
++++ b/arch/arm/boot/dts/sun8i-h3-orangepi-pc.dts
+@@ -90,6 +90,10 @@
+ 	};
+ };
+ 
++&r_twi {
++	status = "okay";
++};
++
+ &ehci1 {
+ 	status = "okay";
+ };
+-- 
+2.9.0
+

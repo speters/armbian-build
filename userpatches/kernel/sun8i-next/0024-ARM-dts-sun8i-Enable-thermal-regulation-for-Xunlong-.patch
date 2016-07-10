@@ -1,0 +1,96 @@
+From e86c0cc73f7a425c6d17851cd23c0ec80fc4485b Mon Sep 17 00:00:00 2001
+From: Ondrej Jirman <megous@megous.com>
+Date: Sun, 5 Jun 2016 22:12:44 +0200
+Subject: [PATCH 24/37] ARM: dts: sun8i: Enable thermal regulation for Xunlong
+ Orange Pi One
+
+---
+ arch/arm/boot/dts/sun8i-h3-orangepi-one.dts | 65 +++++++++++++++++++++++++++++
+ 1 file changed, 65 insertions(+)
+
+diff --git a/arch/arm/boot/dts/sun8i-h3-orangepi-one.dts b/arch/arm/boot/dts/sun8i-h3-orangepi-one.dts
+index 0adf932..ee7ad61 100644
+--- a/arch/arm/boot/dts/sun8i-h3-orangepi-one.dts
++++ b/arch/arm/boot/dts/sun8i-h3-orangepi-one.dts
+@@ -88,6 +88,64 @@
+ 			gpios = <&r_pio 0 3 GPIO_ACTIVE_LOW>;
+ 		};
+ 	};
++
++	vdd_soc: gpio-regulator {
++		compatible = "regulator-gpio";
++
++		regulator-name = "soc-vdd-supply";
++		regulator-min-microvolt = <1100000>;
++		regulator-max-microvolt = <1300000>;
++		regulator-boot-on;
++		regulator-type = "voltage";
++
++		gpios = <&r_pio 0 6 GPIO_ACTIVE_HIGH>;
++		states = <1100000 0x0
++			  1300000 0x1>;
++
++		startup-delay-us = <100000>;
++		enable-active-high;
++	};
++};
++
++&cpu0 {
++	clocks = <&cpu>;
++	clock-latency = <244144>; /* 8 32k periods */
++	operating-points = <
++		/* kHz	  uV */
++		1296000	1300000
++		1200000	1300000
++		624000	1100000
++		480000	1100000
++		312000	1100000
++		240000	1100000
++		>;
++	#cooling-cells = <2>;
++	cooling-min-level = <0>;
++	cooling-max-level = <5>;
++	cpu0-supply = <&vdd_soc>;
++};
++
++&cpu_thermal {
++	cooling-maps {
++		map0 {
++			trip = <&cpu_alert0>;
++			cooling-device = <&cpu0 (-1) (-1)>;
++		};
++	};
++
++	trips {
++		cpu_alert0: cpu_alert0 {
++			temperature = <75000>;
++			hysteresis = <2000>;
++			type = "passive";
++		};
++
++		cpu_crit: cpu_crit {
++			temperature = <100000>;
++			hysteresis = <2000>;
++			type = "critical";
++		};
++	};
+ };
+ 
+ &ehci1 {
+@@ -131,6 +189,13 @@
+ 		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
+ 		allwinner,pull = <SUN4I_PINCTRL_NO_PULL>;
+ 	};
++
++	soc_reg0: soc_reg@0 {
++		allwinner,pins = "PL6";
++		allwinner,function = "gpio_out";
++		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
++		allwinner,pull = <SUN4I_PINCTRL_NO_PULL>;
++	};
+ };
+ 
+ &uart0 {
+-- 
+2.9.0
+

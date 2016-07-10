@@ -1,0 +1,257 @@
+From 6be821cb9abc493c1d0edf27469732a1f53a735f Mon Sep 17 00:00:00 2001
+From: LABBE Corentin <clabbe.montjoie@gmail.com>
+Date: Thu, 16 Jun 2016 10:30:38 +0200
+Subject: [PATCH 37/37] ethernet: sun8i-emac implement NAPI
+
+Implement NAPI for both TX and RX
+
+Signed-off-by: LABBE Corentin <clabbe.montjoie@gmail.com>
+---
+ drivers/net/ethernet/allwinner/sun8i-emac.c | 112 +++++++++++++++++++++++++---
+ 1 file changed, 100 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/net/ethernet/allwinner/sun8i-emac.c b/drivers/net/ethernet/allwinner/sun8i-emac.c
+index 881a9bc..aa35c0b 100644
+--- a/drivers/net/ethernet/allwinner/sun8i-emac.c
++++ b/drivers/net/ethernet/allwinner/sun8i-emac.c
+@@ -6,7 +6,6 @@
+  * This is the driver for Allwinner Ethernet MAC found in H3/A83T/A64 SoC
+  *
+  * TODO:
+- * - NAPI
+  * - MAC filtering
+  * - Jumbo frame
+  * - features rx-all (NETIF_F_RXALL_BIT)
+@@ -68,6 +67,9 @@
+ 
+ #define SUN8I_COULD_BE_USED_BY_DMA BIT(31)
+ 
++#define SUN8I_EMAC_NAPI
++#define SUN8I_EMAC_NAPI_TX
++
+ /* Basic CTL0 */
+ #define BCTL0_FD BIT(0)
+ #define BCTL0_SPEED_10		2
+@@ -78,6 +80,10 @@
+ #define FLOW_RX 1
+ #define FLOW_TX 2
+ 
++#define RX_INT                  BIT(8)
++#define TX_INT                  BIT(0)
++#define TX_UNF_INT              BIT(4)
++
+ /* describe how data from skb are DMA mapped */
+ #define MAP_SINGLE 1
+ #define MAP_PAGE 2
+@@ -110,11 +116,15 @@ static const char const estats_str[][ETH_GSTRING_LEN] = {
+ 	"rx_hw_csum",
+ 	"tx_hw_csum",
+ 	/* interrupts */
++	"rx_int",
++	"tx_int",
+ 	"rx_early_int",
+ 	"tx_early_int",
+ 	"tx_underflow_int",
+ 	/* debug */
+ 	"tx_used_desc",
++	"napi_schedule",
++	"napi_underflow",
+ };
+ 
+ struct sun8i_emac_stats {
+@@ -137,10 +147,15 @@ struct sun8i_emac_stats {
+ 	u64 rx_hw_csum;
+ 	u64 tx_hw_csum;
+ 
++	u64 rx_int;
++	u64 tx_int;
+ 	u64 rx_early_int;
+ 	u64 tx_early_int;
+ 	u64 tx_underflow_int;
++
+ 	u64 tx_used_desc;
++	u64 napi_schedule;
++	u64 napi_underflow;
+ };
+ 
+ /* The datasheet said that each descriptor can transfers up to 4096bytes
+@@ -171,6 +186,7 @@ struct sun8i_emac_priv {
+ 	struct net_device *ndev;
+ 	struct platform_device *pdev;
+ 	struct mii_bus *mdio;
++	struct napi_struct napi;
+ 	spinlock_t tx_lock;/* control the access of transmit descriptors */
+ 	int duplex;
+ 	int speed;
+@@ -495,9 +511,12 @@ static int sun8i_emac_rx_from_ddesc(struct net_device *ndev, int i)
+ 	}
+ 
+ 	sun8i_emac_rx_skb(ndev, i);
+-
+-	/*netif_receive_skb(skb);*/
++#ifdef SUN8I_EMAC_NAPI
++	netif_receive_skb(skb);
++	/*napi_gro_receive(&priv->napi, skb);*/
++#else
+ 	netif_rx(skb);
++#endif
+ 
+ 	return 0;
+ 	/* If the frame need to be dropped, we simply reuse the buffer */
+@@ -544,22 +563,27 @@ static int sun8i_emac_complete_xmit(struct net_device *ndev)
+ 	struct dma_desc *ddesc;
+ 	int frame_len;
+ 
++#ifdef SUN8I_EMAC_NAPI_TX
++	spin_lock(&priv->tx_lock);
++#endif
+ 	do {
+ 		ddesc = priv->dd_tx + priv->tx_dirty;
+ 
+ 		if (ddesc->status & BIT(31)) {
++#ifndef SUN8I_EMAC_NAPI_TX
+ 			dev_err(priv->dev, "BUG: DMA still set %d %d\n",
+ 				priv->tx_dirty, priv->tx_slot);
+-			return 0;
++#endif
++			goto xmit_end;
+ 		}
+ 
+ 		if (ddesc->status == DCLEAN)
+-			return 0;
++			goto xmit_end;
+ 
+ 		if (ddesc->status == 0 && !ddesc->st) {
+ 			dev_err(priv->dev, "BUG: reached the void %d %d\n",
+ 				priv->tx_dirty, priv->tx_slot);
+-			return 0;
++			goto xmit_end;
+ 		}
+ 
+ 		/* TX_UNDERFLOW_ERR */
+@@ -614,10 +638,49 @@ static int sun8i_emac_complete_xmit(struct net_device *ndev)
+ 	if (netif_queue_stopped(ndev) &&
+ 	    rb_tx_numfreedesc(ndev) > MAX_SKB_FRAGS + 1)
+ 		netif_wake_queue(ndev);
+-
++xmit_end:
++#ifdef SUN8I_EMAC_NAPI_TX
++	spin_unlock(&priv->tx_lock);
++#endif
+ 	return 0;
+ }
+ 
++#ifdef SUN8I_EMAC_NAPI
++static int sun8i_emac_poll(struct napi_struct *napi, int budget)
++{
++	struct sun8i_emac_priv *priv =
++		container_of(napi, struct sun8i_emac_priv, napi);
++	struct net_device *ndev = priv->ndev;
++	int received = 0;
++	struct dma_desc *ddesc;
++	int start = priv->rx_dirty;
++
++	priv->estats.napi_schedule++;
++#ifdef SUN8I_EMAC_NAPI_TX
++	sun8i_emac_complete_xmit(ndev);
++#endif
++
++	ddesc = priv->dd_rx + priv->rx_dirty;
++	while (!(ddesc->status & BIT(31)) && received < budget) {
++		sun8i_emac_rx_from_ddesc(ndev, priv->rx_dirty);
++		received++;
++		rb_inc(&priv->rx_dirty, priv->nbdesc_rx);
++		/* prevent to use too many time in case of flood */
++		/*if (priv->rx_dirty == start)
++			return 0;*/
++		ddesc = priv->dd_rx + priv->rx_dirty;
++	};
++	if (received < budget) {
++		priv->estats.napi_underflow++;
++		napi_complete(&priv->napi);
++		writel(RX_INT | TX_INT, priv->base + SUN8I_EMAC_INT_EN);
++	}
++	/*netdev_info(ndev, "%s %d\n", __func__, received);*/
++	return received;
++}
++#endif
++
++
+ static int sun8i_mdio_read(struct mii_bus *bus, int phy_addr, int phy_reg)
+ {
+ 	struct net_device *ndev = bus->priv;
+@@ -1239,9 +1302,6 @@ static int sun8i_emac_open(struct net_device *ndev)
+ 	writel(v, priv->base + SUN8I_EMAC_BASIC_CTL1);
+ 
+ 	/* it seems that hardware complety ignore interrupt configuration */
+-#define RX_INT                  BIT(8)
+-#define TX_INT                  BIT(0)
+-#define TX_UNF_INT              BIT(4)
+ 	writel(RX_INT | TX_INT | TX_UNF_INT, priv->base + SUN8I_EMAC_INT_EN);
+ 
+ 	v = readl(priv->base + SUN8I_EMAC_RX_CTL0);
+@@ -1282,6 +1342,11 @@ static int sun8i_emac_open(struct net_device *ndev)
+ 	sun8i_emac_start_rx(ndev);
+ 	sun8i_emac_start_tx(ndev);
+ 
++#ifdef SUN8I_EMAC_NAPI
++	netif_napi_add(ndev, &priv->napi, sun8i_emac_poll, 64);
++	napi_enable(&priv->napi);
++	/*napi_schedule(&priv->napi);*/
++#endif
+ 	netif_start_queue(ndev);
+ 
+ 	return 0;
+@@ -1353,6 +1418,10 @@ static int sun8i_emac_stop(struct net_device *ndev)
+ {
+ 	struct sun8i_emac_priv *priv = netdev_priv(ndev);
+ 
++#ifdef SUN8I_EMAC_NAPI
++	napi_disable(&priv->napi);
++#endif
++
+ 	sun8i_emac_stop_tx(ndev);
+ 	sun8i_emac_stop_rx(ndev);
+ 
+@@ -1871,8 +1940,15 @@ static irqreturn_t sun8i_emac_dma_interrupt(int irq, void *dev_id)
+ 	v = readl(priv->base + SUN8I_EMAC_INT_STA);
+ 
+ 	/* When this bit is asserted, a frame transmission is completed. */
+-	if (v & BIT(0))
++	if (v & BIT(0)) {
++		priv->estats.tx_int++;
++#ifdef SUN8I_EMAC_NAPI_TX
++		writel(0, priv->base + SUN8I_EMAC_INT_EN);
++		napi_schedule(&priv->napi);
++#else
+ 		sun8i_emac_complete_xmit(ndev);
++#endif
++	}
+ 
+ 	/* When this bit is asserted, the TX DMA FSM is stopped. */
+ 	if (v & BIT(1))
+@@ -1899,8 +1975,20 @@ static irqreturn_t sun8i_emac_dma_interrupt(int irq, void *dev_id)
+ 	}
+ 
+ 	/* When this bit is asserted, a frame reception is completed  */
+-	if (v & BIT(8))
++	if (v & BIT(8)) {
++		priv->estats.rx_int++;
++#ifdef SUN8I_EMAC_NAPI
++#ifdef SUN8I_EMAC_NAPI_TX
++		writel(0, priv->base + SUN8I_EMAC_INT_EN);
++#else
++		writel(TX_INT | TX_UNF_INT, priv->base + SUN8I_EMAC_INT_EN);
++#endif
++		napi_schedule(&priv->napi);
++		/*netdev_info(ndev, "Reschedule\n");*/
++#else
+ 		sun8i_emac_receive_all(ndev);
++#endif
++	}
+ 
+ 	/* When this asserted, the RX DMA can not acquire next TX descriptor
+ 	 * and RX DMA FSM is suspended.
+-- 
+2.9.0
+

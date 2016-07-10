@@ -1,0 +1,37 @@
+From fa92cf1715f6a94d209c0d80a6c3ad7c74430fb1 Mon Sep 17 00:00:00 2001
+From: LABBE Corentin <clabbe.montjoie@gmail.com>
+Date: Wed, 27 Jan 2016 10:19:51 +0100
+Subject: [PATCH 32/37] ARM: dts: sun8i: Enable sun8i-emac on the Orange PI PC
+
+The sun8i-emac hardware is present on the Orange PI PC.
+It uses the internal PHY.
+
+This patch create the needed emac and phy nodes.
+
+Signed-off-by: LABBE Corentin <clabbe.montjoie@gmail.com>
+---
+ arch/arm/boot/dts/sun8i-h3-orangepi-pc.dts | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/arch/arm/boot/dts/sun8i-h3-orangepi-pc.dts b/arch/arm/boot/dts/sun8i-h3-orangepi-pc.dts
+index 67f84ab..a25e3cb 100644
+--- a/arch/arm/boot/dts/sun8i-h3-orangepi-pc.dts
++++ b/arch/arm/boot/dts/sun8i-h3-orangepi-pc.dts
+@@ -265,3 +265,14 @@
+ 	/* USB VBUS is always on */
+ 	status = "okay";
+ };
++
++&emac {
++	phy = <&phy1>;
++	phy-mode = "mii";
++	allwinner,use-internal-phy;
++	allwinner,leds-active-low;
++	status = "okay";
++	phy1: ethernet-phy@1 {
++		reg = <1>;
++	};
++};
+-- 
+2.9.0
+

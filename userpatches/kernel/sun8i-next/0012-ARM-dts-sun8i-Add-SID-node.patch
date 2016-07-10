@@ -1,0 +1,33 @@
+From ba007179d42594ddde96fd53b77e937033c391a7 Mon Sep 17 00:00:00 2001
+From: Josef Gajdusek <atx@atx.name>
+Date: Sun, 22 Nov 2015 23:11:17 +0100
+Subject: [PATCH 12/37] ARM: dts: sun8i: Add SID node
+
+Add a node describing the Security ID memory to the Allwinner H3 .dtsi file.
+
+Signed-off-by: Josef Gajdusek <atx@atx.name>
+---
+ arch/arm/boot/dts/sun8i-h3.dtsi | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/arch/arm/boot/dts/sun8i-h3.dtsi b/arch/arm/boot/dts/sun8i-h3.dtsi
+index 4a4926b..172576d 100644
+--- a/arch/arm/boot/dts/sun8i-h3.dtsi
++++ b/arch/arm/boot/dts/sun8i-h3.dtsi
+@@ -389,6 +389,13 @@
+ 			#size-cells = <0>;
+ 		};
+ 
++		sid: eeprom@01c14000 {
++			compatible = "allwinner,sun4i-a10-sid";
++			reg = <0x01c14000 0x400>;
++			#address-cells = <1>;
++			#size-cells = <1>;
++		};
++
+ 		usbphy: phy@01c19400 {
+ 			compatible = "allwinner,sun8i-h3-usb-phy";
+ 			reg = <0x01c19400 0x2c>,
+-- 
+2.9.0
+

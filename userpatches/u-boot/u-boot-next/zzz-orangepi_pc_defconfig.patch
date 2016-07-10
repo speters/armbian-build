@@ -1,0 +1,12 @@
+diff --git a/configs/orangepi_pc_defconfig b/configs/orangepi_pc_defconfig
+index 7eaa795..c244323 100644
+--- a/configs/orangepi_pc_defconfig
++++ b/configs/orangepi_pc_defconfig
+@@ -12,4 +12,7 @@ CONFIG_SPL=y
+ # CONFIG_CMD_FLASH is not set
+ # CONFIG_CMD_FPGA is not set
+ CONFIG_SY8106A_POWER=y
++CONFIG_USB_EHCI=y
+ CONFIG_USB_EHCI_HCD=y
++CONFIG_SY8106A_VOUT1_VOLT=980
++CONFIG_SYS_CLK_FREQ=40800000

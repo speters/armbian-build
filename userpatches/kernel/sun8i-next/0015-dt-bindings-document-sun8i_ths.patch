@@ -1,0 +1,53 @@
+From d8295d070766567f677b12265707c63750282052 Mon Sep 17 00:00:00 2001
+From: Josef Gajdusek <atx@atx.name>
+Date: Sun, 22 Nov 2015 23:31:01 +0100
+Subject: [PATCH 15/37] dt-bindings: document sun8i_ths
+
+This patch adds the binding documentation for the sun8i_ths driver
+
+Signed-off-by: Josef Gajdusek <atx@atx.name>
+---
+ .../devicetree/bindings/thermal/sun8i-ths.txt      | 31 ++++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+ create mode 100644 Documentation/devicetree/bindings/thermal/sun8i-ths.txt
+
+diff --git a/Documentation/devicetree/bindings/thermal/sun8i-ths.txt b/Documentation/devicetree/bindings/thermal/sun8i-ths.txt
+new file mode 100644
+index 0000000..826cd57
+--- /dev/null
++++ b/Documentation/devicetree/bindings/thermal/sun8i-ths.txt
+@@ -0,0 +1,31 @@
++* sun8i THS
++
++Required properties:
++- compatible : "allwinner,sun8i-h3-ths"
++- reg : Address range of the thermal registers and location of the calibration
++        value
++- resets : Must contain an entry for each entry in reset-names.
++           see ../reset/reset.txt for details
++- reset-names : Must include the name "ahb"
++- clocks : Must contain an entry for each entry in clock-names.
++- clock-names : Must contain "ahb" for the bus gate and "ths" for the THS
++  clock
++
++Optional properties:
++- nvmem-cells : Must contain an entry for each entry in nvmem-cell-names
++- nvmem-cell-names : Must contain "calibration" for the cell containing the
++  temperature calibration cell, if available
++
++Example:
++ths: ths@01c25000 {
++	#thermal-sensor-cells = <0>;
++	compatible = "allwinner,sun8i-h3-ths";
++	reg = <0x01c25000 0x400>;
++	interrupts = <GIC_SPI 63 IRQ_TYPE_LEVEL_HIGH>;
++	resets = <&bus_rst 136>;
++	reset-names = "ahb";
++	clocks = <&bus_gates 72>, <&ths_clk>;
++	clock-names = "ahb", "ths";
++	nvmem-cells = <&ths_calibration>;
++	nvmem-cell-names = "calibration";
++};
+-- 
+2.9.0
+

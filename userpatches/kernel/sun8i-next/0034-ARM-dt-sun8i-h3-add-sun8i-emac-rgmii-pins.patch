@@ -1,0 +1,37 @@
+From 0d2585ac6705e6fb06c410d42996ad635e982b8a Mon Sep 17 00:00:00 2001
+From: LABBE Corentin <clabbe.montjoie@gmail.com>
+Date: Fri, 3 Jun 2016 09:30:54 +0200
+Subject: [PATCH 34/37] ARM: dt: sun8i-h3: add sun8i-emac rgmii pins
+
+This patch add pinctrl node for emac.
+
+Signed-off-by: LABBE Corentin <clabbe.montjoie@gmail.com>
+---
+ arch/arm/boot/dts/sun8i-h3.dtsi | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/arch/arm/boot/dts/sun8i-h3.dtsi b/arch/arm/boot/dts/sun8i-h3.dtsi
+index 9e43cec..07f4924 100644
+--- a/arch/arm/boot/dts/sun8i-h3.dtsi
++++ b/arch/arm/boot/dts/sun8i-h3.dtsi
+@@ -529,6 +529,17 @@
+ 			interrupt-controller;
+ 			#interrupt-cells = <3>;
+ 
++			emac_rgmii_pins: emac0@0 {
++				allwinner,pins = "PD0", "PD1", "PD2", "PD3",
++						"PD4", "PD5", "PD7",
++						"PD8", "PD9", "PD10",
++						"PD12", "PD13", "PD15",
++						"PD16", "PD17";
++				allwinner,function = "emac";
++				allwinner,drive = <SUN4I_PINCTRL_40_MA>;
++				allwinner,pull = <SUN4I_PINCTRL_NO_PULL>;
++			};
++
+ 			uart0_pins_a: uart0@0 {
+ 				allwinner,pins = "PA4", "PA5";
+ 				allwinner,function = "uart0";
+-- 
+2.9.0
+
